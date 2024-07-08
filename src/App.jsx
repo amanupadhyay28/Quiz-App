@@ -1,35 +1,74 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import Question from './components/Question';
+import Result from './components/Results';
+import DarkModeToggle from './components/DarkModeToggle';
+import { ClipLoader } from 'react-spinners';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [questions, setQuestions] = useState([]);
+  const [score, setScore] = useState(0);
+  const [showResult, setShowResult] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(
+    localStorage.getItem('theme') === 'dark'
+  );
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDarkMode);
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    const fetchQuestions = async () => {
+      try {
+        const response = await axios.get('https://opentdb.com/api.php?amount=10&type=multiple');
+        const fetchedQuestions = response.data.results.map((question) => ({
+          text: question.question,
+          options: [
+            ...question.incorrect_answers.map(answer => ({ text: answer, isCorrect: false })),
+            { text: question.correct_answer, isCorrect: true }
+          ].sort(() => Math.random() - 0.5) // Shuffle options
+        }));
+        setQuestions(fetchedQuestions);
+      } catch (error) {
+        console.error('Error fetching questions:', error);
+      }
+    };
+
+    fetchQuestions();
+  }, []);
+
+  const handleAnswer = (isCorrect) => {
+    if (isCorrect) setScore(score + 1);
+    const nextQuestion = currentQuestion + 1;
+    if (nextQuestion < questions.length) {
+      setCurrentQuestion(nextQuestion);
+    } else {
+      setShowResult(true);
+    }
+  };
+
+  const toggleDarkMode = () => {
+    setIsDarkMode(!isDarkMode);
+  };
 
   return (
-    <>
-      <div>
-        <a href="https://vitejs.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 relative">
+      <div className="absolute top-4 right-4">
+        <DarkModeToggle isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+      {questions.length === 0 ? (
+        <div className="flex justify-center items-center h-screen">
+          <ClipLoader color={isDarkMode ? '#ffffff' : '#000000'} size={150} />
+        </div>
+      ) : showResult ? (
+        <Result score={score} total={questions.length} />
+      ) : (
+        <Question question={questions[currentQuestion]} handleAnswer={handleAnswer} />
+      )}
+    </div>
+  );
 }
 
-export default App
+export default App;
